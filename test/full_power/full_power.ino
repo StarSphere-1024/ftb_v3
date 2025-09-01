@@ -21,8 +21,9 @@ CRGB leds[NUM_RGB_LEDS];
 #define I2C_SDA 39
 #define I2C_SCL 40
 
-#define K210_RX_PIN 37
-#define K210_TX_PIN 36
+#define K210_I2C_SCL_PIN 37
+#define K210_I2C_SDA_PIN 36
+
 #define ASR_RX_PIN 35
 #define ASR_TX_PIN 34
 
@@ -74,7 +75,7 @@ LIS3DHTR<TwoWire> LIS;
 #define DHTTYPE DHT11
 DHT dht(DHT_PIN, DHTTYPE);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
-WonderK210 *wk;
+WonderK210_I2C k210;
 Find_Box_st *result;
 PS2X ps2x;
 
@@ -269,8 +270,8 @@ void vSensorUpdateTask(void *pvParameters)
             az = LIS.getAccelerationZ();
         }
         light = analogRead(LIGHT_PIN);
-        wk->update_data();
-        face_found = wk->recive_box(result, K210_FIND_FACE_YOLO);
+        k210->update_data();
+        face_found = k210->recive_box(result, K210_FIND_FACE_YOLO);
         if (face_found)
         {
             face_res = *result;
@@ -389,7 +390,7 @@ void setup()
         Serial.println("WARNING: LIS3DHTR Accelerometer not found.");
     }
     ps2x.config_gamepad(PS2_CLK_PIN, PS2_CMD_PIN, PS2_CS_PIN, PS2_DATA_PIN, true, true);
-    wk = new WonderK210(&Serial1);
+    k210.begin(I2C_SDA, I2C_SCL, 100000);
     result = new Find_Box_st();
     pinMode(LIGHT_PIN, INPUT);
 

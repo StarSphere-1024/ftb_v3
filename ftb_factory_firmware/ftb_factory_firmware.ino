@@ -17,12 +17,16 @@
 #include <WonderK210.h>
 
 #define USER_BUTTON_A_PIN 21
+#define USER_BUTTON_B_PIN 0
+
 #define RGB_PIN 33
+
 #define I2C_SDA 39
 #define I2C_SCL 40
 
-#define K210_RX_PIN 37
-#define K210_TX_PIN 36
+#define K210_I2C_SCL_PIN 37
+#define K210_I2C_SDA_PIN 36
+
 #define ASR_RX_PIN 35
 #define ASR_TX_PIN 34
 
@@ -151,7 +155,7 @@ PS2X ps2x;
 LIS3DHTR<TwoWire> LIS;
 DHT dht(DHT_PIN, DHT11);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
-WonderK210 *wk;
+WonderK210_I2C k210;
 CRGB g_leds[NUM_RGB_LEDS];
 
 hw_timer_t *g_servo_timer = NULL;
@@ -304,7 +308,7 @@ void hal_sensors_init() {
   dht.begin();
   pinMode(LIGHT_PIN, INPUT);
   Serial1.begin(115200, SERIAL_8N1, K210_RX_PIN, K210_TX_PIN);
-  wk = new WonderK210(&Serial1);
+  k210.begin(I2C_SDA, I2C_SCL, 100000);
   Serial.println("HAL: All sensors initialized.");
 }
 
@@ -533,8 +537,8 @@ void vTaskSensorCollection(void *pvParameters) {
     data_packet.ultrasonic_dist = ultrasonic.MeasureInCentimeters();
     data_packet.light_level = analogRead(LIGHT_PIN);
 
-    wk->update_data();
-    if (wk->recive_box(&face_result_buffer, K210_FIND_FACE_YOLO)) {
+    k210->update_data();
+    if (k210->recive_box(&face_result_buffer, K210_FIND_FACE_YOLO)) {
       data_packet.face_result = face_result_buffer;
       data_packet.face_detected = true;
     } else {
