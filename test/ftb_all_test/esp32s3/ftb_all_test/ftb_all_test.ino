@@ -506,32 +506,6 @@ void testI2CAccelerometer()
     }
 }
 
-
-void testServo()
-{
-    Serial.println("\n舵机1 (GPIO48) 从0度转到180度，舵机2 (GPIO47) 从180度转到0度，然后反向。");
-    Serial.println("按任意键退出。");
-    for (int pos = 0; pos <= 180; pos += 1)
-    {
-        Servos_SetAngle(1, pos);
-        Servos_SetAngle(2, 180 - pos);
-        delay(15);
-        if (Serial.available() > 0)
-            break;
-    }
-    if (Serial.available() == 0)
-    {
-        for (int pos = 180; pos >= 0; pos -= 1)
-        {
-            Servos_SetAngle(1, pos);
-            Servos_SetAngle(2, 180 - pos);
-            delay(15);
-            if (Serial.available() > 0)
-                break;
-        }
-    }
-}
-
 void testServoSerialControl()
 {
     Serial.println("\n--- 舵机串口控制测试 ---");
@@ -1035,42 +1009,7 @@ void testMecanumMotors()
 void testServos()
 {
     Serial.println("\n--- 10. 舵机功能测试 (软件 PWM) ---");
-    Serial.println("测试选项：");
-    Serial.println("  1. 自动角度测试");
-    Serial.println("  2. 串口控制测试");
-    Serial.println("  0. 退出");
-    Serial.print("请选择测试选项: ");
-
-    while (true)
-    {
-        if (Serial.available() > 0)
-        {
-            String input = Serial.readStringUntil('\n');
-            input.trim();
-            int choice = input.toInt();
-            bool should_exit = false;
-
-            switch (choice)
-            {
-            case 1:
-                testServo();
-                break;
-            case 2:
-                testServoSerialControl();
-                break;
-            case 0:
-                should_exit = true;
-                break;
-            default:
-                Serial.println("无效输入。");
-                break;
-            }
-
-            if (should_exit)
-                break;
-            Serial.print("\n请选择下一个测试选项 (回车退出): ");
-        }
-    }
+    testServoSerialControl();
 }
 
 void testRGB_FastLED()
