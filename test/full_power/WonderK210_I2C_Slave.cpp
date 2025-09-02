@@ -1,65 +1,137 @@
-// WonderK210_I2C.cpp
-#include "WonderK210_I2C.h"
+#include "WonderK210_I2C_Slave.h"
 
-// 构造函数
-WonderK210_I2C::WonderK210_I2C(TwoWire *wire) : _wire(wire)
+const uint8_t WonderK210_I2C::crc8_table[] = {
+    0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
+    157, 195, 33, 127, 252, 162, 64, 30, 95, 1, 227, 189, 62, 96, 130, 220,
+    35, 125, 159, 193, 66, 28, 254, 160, 225, 191, 93, 3, 128, 222, 60, 98,
+    190, 224, 2, 92, 223, 129, 99, 61, 124, 34, 192, 158, 29, 67, 161, 255,
+    70, 24, 250, 164, 39, 121, 155, 197, 132, 218, 56, 102, 229, 187, 89, 7,
+    219, 133, 103, 57, 186, 228, 6, 88, 25, 71, 165, 251, 120, 38, 196, 154,
+    101, 59, 217, 135, 4, 90, 184, 230, 167, 249, 27, 69, 198, 152, 122, 36,
+    248, 166, 68, 26, 153, 199, 37, 123, 58, 100, 134, 216, 91, 5, 231, 185,
+    140, 210, 48, 110, 237, 179, 81, 15, 78, 16, 242, 172, 47, 113, 147, 205,
+    17, 79, 173, 243, 112, 46, 204, 146, 211, 141, 111, 49, 178, 236, 14, 80,
+    175, 241, 19, 77, 206, 144, 114, 44, 109, 51, 209, 143, 12, 82, 176, 238,
+    50, 108, 142, 208, 83, 13, 239, 177, 240, 174, 76, 18, 145, 207, 45, 115,
+    202, 148, 118, 40, 171, 245, 23, 73, 8, 86, 180, 234, 105, 55, 213, 139,
+    87, 9, 235, 181, 54, 104, 138, 212, 149, 203, 41, 119, 244, 170, 72, 22,
+    233, 183, 85, 11, 136, 214, 52, 106, 43, 117, 151, 201, 74, 20, 246, 168,
+    116, 42, 200, 150, 21, 75, 169, 247, 182, 232, 10, 84, 215, 137, 107, 53
+};
+
+
+uint8_t WonderK210_I2C::checksum_crc8(const uint8_t *buf, uint16_t len)
 {
-    _data_updated = false;
-    // 清空内部数据
-    memset(&_box_data, 0, sizeof(Find_Box_st));
-}
-
-// 初始化函数
-void WonderK210_I2C::begin(int sda_pin, int scl_pin, uint32_t frequency)
-{
-    if (sda_pin >= 0 && scl_pin >= 0) {
-        _wire->begin(sda_pin, scl_pin, frequency);
-    } else {
-        _wire->begin(); // 使用默认引脚
-    }
-    _wire->setClock(frequency);
-    Serial.println("WonderK210 I2C Master initialized");
-}
-
-// 更新数据函数
-bool WonderK210_I2C::update_data()
-{
-    // 从 K210_I2C_ADDR 设备请求 sizeof(Find_Box_st) 个字节的数据
-    // sizeof(Find_Box_st) 应该是 8 (4 * uint16_t)
-    uint8_t bytes_received = _wire->requestFrom(K210_I2C_ADDR, (uint8_t)sizeof(Find_Box_st));
-
-    // 检查是否收到了正确数量的字节
-    if (bytes_received == sizeof(Find_Box_st))
+    uint8_t check = 0;
+    while (len--)
     {
-        // 创建一个缓冲区来接收数据
-        uint8_t buffer[sizeof(Find_Box_st)];
-        _wire->readBytes(buffer, sizeof(Find_Box_st));
+        check = crc8_table[check ^ (*buf++)];
+    }
+    return check;
+}
 
-        // 将接收到的字节流直接拷贝到结构体中
-        // C++保证了当结构体被 #pragma pack(1) 修饰时，这种操作是安全的
-        // MicroPython的ustruct默认使用小端模式，大部分ESP32也是小端模式，所以直接拷贝是可行的
-        memcpy(&_box_data, buffer, sizeof(Find_Box_st));
+WonderK210_I2C::WonderK210_I2C(TwoWire *wire, uint8_t deviceAddress)
+{
+    _wire = wire;
+    _address = deviceAddress;
+    _read_succeed = false;
+}
 
-        _data_updated = true;
-        return true;
+void WonderK210_I2C::begin(int sda, int scl)
+{
+    if (sda != -1 && scl != -1)
+    {
+        _wire->begin(sda, scl);
     }
     else
     {
-        // 如果没有收到预期的数据，则认为更新失败
-        Serial.printf("Error: Expected %d bytes, but received %d\n", sizeof(Find_Box_st), bytes_received);
-        _data_updated = false;
-        return false;
+        _wire->begin();
     }
 }
 
-// 获取方框数据函数
-bool WonderK210_I2C::recive_box(Find_Box_st *rec)
+bool WonderK210_I2C::update_data()
 {
-    if (_data_updated)
-    {
-        // 将内部存储的数据拷贝给用户提供的结构体指针
-        memcpy(rec, &_box_data, sizeof(Find_Box_st));
+    _read_succeed = false;
+    uint8_t temp_buffer[I2C_BUFFER_SIZE];
+    const uint8_t max_read_size = 2 + I2C_DATA_SIZE + 1; // func, len, data, crc
+
+    _wire->beginTransmission(_address);
+    _wire->write(K210_DATA_REG);
+    if (_wire->endTransmission(false) != 0) {
+        return false;
+    }
+
+    size_t bytes_received = _wire->requestFrom(_address, max_read_size);
+
+    if (bytes_received < 3) {
+        return false;
+    }
+    
+    for(int i = 0; i < bytes_received; i++){
+        if(_wire->available()){
+            temp_buffer[i] = _wire->read();
+        } else {
+            return false;
+        }
+    }
+
+    uint8_t function = temp_buffer[0];
+    uint8_t data_length = temp_buffer[1];
+
+    if (function == 0 || function >= K210_FUNC_NONE || data_length > I2C_DATA_SIZE) {
+        return false;
+    }
+
+    if (bytes_received < (size_t)(2 + data_length + 1)) {
+        return false;
+    }
+
+    uint8_t received_checksum = temp_buffer[2 + data_length];
+    uint8_t calculated_checksum = checksum_crc8(temp_buffer, 2 + data_length);
+
+    if (calculated_checksum == received_checksum) {
+        _packet_function = function;
+        _packet_length = data_length;
+        memcpy(_packet_data, temp_buffer + 2, data_length);
+        _read_succeed = true;
         return true;
     }
+
     return false;
+}
+
+bool WonderK210_I2C::recive_box(Find_Box_st *rec, enum k210_PACKET_FUNCTION func)
+{
+    if (!_read_succeed || _packet_function != func || _packet_length != sizeof(Find_Box_st)) {
+        return false;
+    }
+    _read_succeed = false;
+    memcpy(rec, _packet_data, sizeof(Find_Box_st));
+    return true;
+}
+
+bool WonderK210_I2C::recive_box_msg(Find_Box_Msg_st *rec, enum k210_PACKET_FUNCTION func)
+{
+    if (!_read_succeed || _packet_function != func || _packet_length > sizeof(Find_Box_Msg_st) || _packet_length < sizeof(Find_Box_st)) {
+        return false;
+    }
+    _read_succeed = false;
+    memcpy(rec, _packet_data, _packet_length);
+    if (_packet_length < sizeof(Find_Box_Msg_st)) {
+        rec->msg[_packet_length - sizeof(Find_Box_st)] = '\0';
+    }
+    return true;
+}
+
+bool WonderK210_I2C::recive_msg(Find_Msg_st *rec, enum k210_PACKET_FUNCTION func)
+{
+    if (!_read_succeed || _packet_function != func || _packet_length > sizeof(Find_Msg_st)) {
+        return false;
+    }
+    _read_succeed = false;
+    memcpy(rec, _packet_data, _packet_length);
+    if (_packet_length < sizeof(Find_Msg_st)) {
+       ((char*)rec)[_packet_length] = '\0';
+    }
+    return true;
 }

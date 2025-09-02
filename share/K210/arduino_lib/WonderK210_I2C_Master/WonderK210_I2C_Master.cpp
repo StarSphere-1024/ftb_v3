@@ -1,5 +1,5 @@
 // WonderK210_I2C.cpp
-#include "WonderK210_I2C.h"
+#include "WonderK210_I2C_Master.h"
 
 // CRC8 字节表 (与原版相同)
 static const uint8_t crc8_table[] = {

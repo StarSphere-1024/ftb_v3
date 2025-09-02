@@ -23,7 +23,6 @@
 #define RGB_BRIGHTNESS 150
 #define LED_TYPE WS2812B
 #define COLOR_ORDER GRB
-CRGB leds[NUM_RGB_LEDS];
 
 #define I2C_SDA 39
 #define I2C_SCL 40
@@ -35,10 +34,9 @@ CRGB leds[NUM_RGB_LEDS];
 #define ASR_TX_PIN 34
 #define SOFT_SERIAL_RX_PIN 20
 #define SOFT_SERIAL_TX_PIN 19
-EspSoftwareSerial::UART softSerial;
 
-#define K210_I2C_SCL_PIN 37
-#define K210_I2C_SDA_PIN 36
+#define K210_I2C_SCL_PIN 36
+#define K210_I2C_SDA_PIN 37
 
 #define GROVE6_PIN_A 1
 #define GROVE6_PIN_B 2
@@ -51,19 +49,27 @@ EspSoftwareSerial::UART softSerial;
 #define GROVE4_PIN_A 26
 #define GROVE4_PIN_B 38
 
-#define ANALOG1_PIN_A GROVE3_PIN_A
-#define ANALOG1_PIN_B GROVE3_PIN_B
-#define ANALOG2_PIN_A GROVE6_PIN_A
-#define ANALOG2_PIN_B GROVE6_PIN_B
+#define ANALOG1_PIN_A GROVE2_PIN_A
+#define ANALOG1_PIN_B GROVE2_PIN_B
+#define ANALOG2_PIN_A GROVE3_PIN_A
+#define ANALOG2_PIN_B GROVE3_PIN_B
+#define ANALOG3_PIN_A GROVE6_PIN_A
+#define ANALOG3_PIN_B GROVE6_PIN_B
 
 #define PS2_CMD_PIN 9
 #define PS2_DATA_PIN 10
 #define PS2_CLK_PIN 41
 #define PS2_CS_PIN 42
 
-#define LIGHT_PIN GROVE3_PIN_A
+#define LIGHT_PIN GROVE2_PIN_A
 #define DHT_PIN GROVE4_PIN_A
 #define ULTRASONIC_PIN GROVE5_PIN_A
+
+#define SERVO1_PIN 48
+#define SERVO2_PIN 47
+#define SERVO_MIN_PULSE 500
+#define SERVO_MAX_PULSE 2500
+#define SERVO_PERIOD 20000
 
 #define LF_MOTOR_FWD_PWM 11
 #define LF_MOTOR_REV_PWM 12
@@ -73,6 +79,7 @@ EspSoftwareSerial::UART softSerial;
 #define LR_MOTOR_REV_PWM 16
 #define RR_MOTOR_FWD_PWM 18
 #define RR_MOTOR_REV_PWM 17
+
 const uint8_t MIN_SPEED = 100;
 enum CarState
 {
@@ -86,11 +93,7 @@ enum CarState
     BRAKING
 } CurrentState = STOP;
 
-#define SERVO1_PIN 48
-#define SERVO2_PIN 47
-#define SERVO_MIN_PULSE 500
-#define SERVO_MAX_PULSE 2500
-#define SERVO_PERIOD 20000
+EspSoftwareSerial::UART softSerial;
 
 PS2X ps2x;
 int ps2_error = 0;
@@ -104,12 +107,15 @@ const char *wifi_password = "star123!";
 BLECharacteristic *pCharacteristic;
 bool deviceConnected = false;
 
+CRGB leds[NUM_RGB_LEDS];
+
 LIS3DHTR<TwoWire> LIS;
 #define DHTTYPE DHT11
 DHT dht(DHT_PIN, DHTTYPE);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
 
-WonderK210_I2C k210;
+TwoWire *k210Wire = new TwoWire(1);
+WonderK210_I2C *k210 = new WonderK210_I2C(k210Wire);
 Find_Box_st *result;
 
 class MyServerCallbacks : public BLEServerCallbacks
@@ -500,34 +506,6 @@ void testI2CAccelerometer()
     }
 }
 
-void testAnalogADC()
-{
-    Serial.println("\n--- 模拟接口ADC测试 ---");
-    Serial.println("将持续读取模拟接口的ADC值 (12位, 0-4095)。");
-    Serial.println("按任意键退出。");
-    while (Serial.available() == 0)
-    {
-        int adc1a = analogRead(ANALOG1_PIN_A);
-        int adc1b = analogRead(ANALOG1_PIN_B);
-        int adc2a = analogRead(ANALOG2_PIN_A);
-        int adc2b = analogRead(ANALOG2_PIN_B);
-        Serial.print("模拟接口1: ");
-        Serial.print("P1(GPIO3):");
-        Serial.print(adc1a);
-        Serial.print(" P2(GPIO4):");
-        Serial.print(adc1b);
-        Serial.print("  |  ");
-        Serial.print("模拟接口2: ");
-        Serial.print("P1(GPIO1):");
-        Serial.print(adc2a);
-        Serial.print(" P2(GPIO2):");
-        Serial.print(adc2b);
-        Serial.println();
-        delay(500);
-    }
-    while (Serial.available() > 0)
-        Serial.read();
-}
 
 void testServo()
 {
@@ -655,18 +633,18 @@ void testLineFollowerSensors()
 
     while (Serial.available() == 0)
     {
-        int g3_a = digitalRead(LINE_FOLLOWER_G3_A);
-        int g3_b = digitalRead(LINE_FOLLOWER_G3_B);
-        int g4_a = digitalRead(LINE_FOLLOWER_G6_A);
-        int g4_b = digitalRead(LINE_FOLLOWER_G6_B);
+        int g3_a = analogRead(LINE_FOLLOWER_G3_A);
+        int g3_b = analogRead(LINE_FOLLOWER_G3_B);
+        int g4_a = analogRead(LINE_FOLLOWER_G6_A);
+        int g4_b = analogRead(LINE_FOLLOWER_G6_B);
 
         Serial.print("Grove3 A (GPIO3): ");
         Serial.print(g3_a);
         Serial.print("  Grove3 B (GPIO4): ");
         Serial.print(g3_b);
-        Serial.print("  |  Grove4 A (GPIO1): ");
+        Serial.print("  |  Grove6 A (GPIO1): ");
         Serial.print(g4_a);
-        Serial.print("  Grove4 B (GPIO2): ");
+        Serial.print("  Grove6 B (GPIO2): ");
         Serial.println(g4_b);
 
         delay(200);
@@ -696,7 +674,7 @@ void testSerialPC()
 
 void testSerialASR()
 {
-    Serial.println("\n--- 3. ASR-PRO串口通信测试 (UART2) ---");
+    Serial.println("\n--- 2. ASR-PRO串口通信测试 (UART2) ---");
     Serial.println("测试选项：");
     Serial.println("  1. 测试基础通信 (PING/PONG)");
     Serial.println("  2. 测试唤醒功能");
@@ -738,7 +716,7 @@ void testSerialASR()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (0退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车退出): ");
         }
     }
 }
@@ -811,7 +789,7 @@ void testI2C()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (0退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车退出): ");
         }
     }
 }
@@ -820,7 +798,7 @@ void testAnalogInterfaces()
 {
     Serial.println("\n--- 6. 模拟接口测试 (J16, J17) ---");
     Serial.println("测试选项：");
-    Serial.println("  1. 模拟接口ADC测试");
+    Serial.println("  1. 循迹传感器ADC测试");
     Serial.println("  2. 光线传感器测试 (GPIO2)");
     Serial.println("  0. 退出");
     Serial.print("请选择测试选项: ");
@@ -837,7 +815,7 @@ void testAnalogInterfaces()
             switch (choice)
             {
             case 1:
-                testAnalogADC();
+                testLineFollowerSensors();
                 break;
             case 2:
                 testLightSensor();
@@ -852,7 +830,7 @@ void testAnalogInterfaces()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (0退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车退出): ");
         }
     }
 }
@@ -863,7 +841,6 @@ void testGroveInterfaces()
     Serial.println("测试选项：");
     Serial.println("  1. 温湿度传感器测试 (DHT11, Grove4)");
     Serial.println("  2. 超声波传感器测试 (Grove2)");
-    Serial.println("  3. 双组循迹红外传感器测试 (Grove3, Grove4)");
     Serial.println("  0. 退出");
     Serial.print("请选择测试选项: ");
 
@@ -884,9 +861,6 @@ void testGroveInterfaces()
             case 2:
                 testUltrasonicSensor();
                 break;
-            case 3:
-                testLineFollowerSensors();
-                break;
             case 0:
                 should_exit = true;
                 break;
@@ -897,7 +871,7 @@ void testGroveInterfaces()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (0退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车退出): ");
         }
     }
 }
@@ -952,13 +926,13 @@ void testPS2()
 
         int stick_lx = ps2x.Analog(PSS_LX);
         int stick_ly = ps2x.Analog(PSS_LY);
-        if (stick_lx != 128 || stick_ly != 127)
+        if (stick_lx != 128 || stick_ly != 128)
         {
             Serial.printf("Left Stick: (%d, %d)\n", stick_lx, stick_ly);
         }
         int stick_rx = ps2x.Analog(PSS_RX);
         int stick_ry = ps2x.Analog(PSS_RY);
-        if (stick_rx != 128 || stick_ry != 127)
+        if (stick_rx != 128 || stick_ry != 128)
         {
             Serial.printf("Right Stick: (%d, %d)\n", stick_rx, stick_ry);
         }
@@ -1094,7 +1068,7 @@ void testServos()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (0退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车退出): ");
         }
     }
 }
@@ -1281,7 +1255,7 @@ void setup()
         ;
     Serial.println("\n\nESP32-S3 测试程序 启动...");
 
-    Serial1.begin(115200, SERIAL_8N1, K210_RX_PIN, K210_TX_PIN);
+    
     Serial2.begin(115200, SERIAL_8N1, ASR_RX_PIN, ASR_TX_PIN);
     softSerial.begin(9600, SWSERIAL_8N1, SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN, false);
 
@@ -1293,7 +1267,7 @@ void setup()
     LIS.setOutputDataRate(LIS3DHTR_DATARATE_50HZ);
     dht.begin();
 
-    k210.begin(I2C_SDA, I2C_SCL, 100000);
+    k210->begin(K210_I2C_SDA_PIN, K210_I2C_SCL_PIN);
     result = new Find_Box_st();
 
     pinMode(LIGHT_PIN, INPUT);

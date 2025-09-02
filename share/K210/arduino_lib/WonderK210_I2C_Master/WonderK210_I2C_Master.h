@@ -72,7 +72,7 @@ typedef struct
 } Find_Msg_st;
 #pragma pack()
 
-// 帧功能号枚举 (与原版相同)
+// 帧功能号枚举
 enum k210_PACKET_FUNCTION
 {
     K210_FUNC_SYS = 0,
@@ -107,7 +107,7 @@ public:
     // 清空内部缓冲区
     void clear_rec();
 
-    // 用户使用函数 (与原版相同)
+    // 用户使用函数
     bool recive_box(Find_Box_st *rec, enum k210_PACKET_FUNCTION func);
     bool recive_box_msg(Find_Box_Msg_st *rec, enum k210_PACKET_FUNCTION func);
     bool recive_msg(Find_Msg_st *rec, enum k210_PACKET_FUNCTION func);

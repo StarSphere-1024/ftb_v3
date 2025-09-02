@@ -34,7 +34,7 @@ void setup() {
 void loop() {
   // 在主循环中不断调用 update_data()
   // 它会处理 I2C 中断接收到的数据，并进行协议解析
-  k210.update_data();
+  
 
   // 尝试获取人脸识别数据
   // recive_box 函数会检查是否有匹配功能号 (K210_FIND_FACE_YOLO) 的完整数据包

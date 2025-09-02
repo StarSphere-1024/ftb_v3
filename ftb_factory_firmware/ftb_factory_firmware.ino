@@ -14,7 +14,7 @@
 #include "LIS3DHTR.h"
 #include "DHT.h"
 #include "Ultrasonic.h"
-#include <WonderK210.h>
+#include <WonderK210_I2C_Slave.h>
 
 #define USER_BUTTON_A_PIN 21
 #define USER_BUTTON_B_PIN 0
@@ -24,8 +24,8 @@
 #define I2C_SDA 39
 #define I2C_SCL 40
 
-#define K210_I2C_SCL_PIN 37
-#define K210_I2C_SDA_PIN 36
+#define K210_I2C_SCL_PIN 36
+#define K210_I2C_SDA_PIN 37
 
 #define ASR_RX_PIN 35
 #define ASR_TX_PIN 34
@@ -71,8 +71,12 @@
 #define SERVO_PWM_PERIOD_MS 20
 #define SERVO_MIN_PULSE_US 500
 #define SERVO_MAX_PULSE_US 2500
-#define SERVO1_DEFAULT_ANGLE 180
-#define SERVO2_DEFAULT_ANGLE 90
+#define SERVO1_MIN_ANGLE 0
+#define SERVO1_MAX_ANGLE 150
+#define SERVO2_MIN_ANGLE 0
+#define SERVO2_MAX_ANGLE 180
+#define SERVO1_DEFAULT_ANGLE (SERVO1_MAX_ANGLE+SERVO1_MIN_ANGLE)/2
+#define SERVO2_DEFAULT_ANGLE (SERVO2_MAX_ANGLE+SERVO2_MIN_ANGLE)/2
 
 #define TASK_LINE_FOLLOWING_PRIO 3
 #define TASK_SENSOR_COLLECTION_PRIO 2
@@ -155,7 +159,8 @@ PS2X ps2x;
 LIS3DHTR<TwoWire> LIS;
 DHT dht(DHT_PIN, DHT11);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
-WonderK210_I2C k210;
+TwoWire *k210Wire = new TwoWire(1);
+WonderK210_I2C *k210 = new WonderK210_I2C(k210Wire);
 CRGB g_leds[NUM_RGB_LEDS];
 
 hw_timer_t *g_servo_timer = NULL;
@@ -307,8 +312,8 @@ void hal_sensors_init() {
   }
   dht.begin();
   pinMode(LIGHT_PIN, INPUT);
-  Serial1.begin(115200, SERIAL_8N1, K210_RX_PIN, K210_TX_PIN);
-  k210.begin(I2C_SDA, I2C_SCL, 100000);
+  
+  k210->begin(K210_I2C_SDA_PIN, K210_I2C_SCL_PIN);
   Serial.println("HAL: All sensors initialized.");
 }
 
@@ -485,8 +490,8 @@ void vTaskControl(void *pvParameters) {
           xQueueSend(g_motor_cmd_queue, &motor_cmd, 0);
 
           if (abs(ry - 128) > 15 || abs(rx - 128) > 15) {
-            servo_cmd.servo1_angle = map(ry, 0, 255, 180, 100);
-            servo_cmd.servo2_angle = map(rx, 0, 255, 0, 180);
+            servo_cmd.servo1_angle = map(ry, 0, 255, SERVO1_MAX_ANGLE, SERVO1_MIN_ANGLE);
+            servo_cmd.servo2_angle = map(rx, 0, 255, SERVO2_MIN_ANGLE, SERVO2_MAX_ANGLE);
             xQueueSend(g_servo_cmd_queue, &servo_cmd, 0);
           }
 

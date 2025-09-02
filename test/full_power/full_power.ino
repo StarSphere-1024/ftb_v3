@@ -9,7 +9,7 @@
 #include "LIS3DHTR.h"
 #include "DHT.h"
 #include "Ultrasonic.h"
-#include <WonderK210.h>
+#include <WonderK210_I2C_Slave.h>
 
 #define RGB_PIN 33
 #define NUM_RGB_LEDS 9
@@ -21,8 +21,8 @@ CRGB leds[NUM_RGB_LEDS];
 #define I2C_SDA 39
 #define I2C_SCL 40
 
-#define K210_I2C_SCL_PIN 37
-#define K210_I2C_SDA_PIN 36
+#define K210_I2C_SCL_PIN 36
+#define K210_I2C_SDA_PIN 37
 
 #define ASR_RX_PIN 35
 #define ASR_TX_PIN 34
@@ -60,14 +60,14 @@ CRGB leds[NUM_RGB_LEDS];
 #define SERVO2_PIN 47
 #define SERVO_MIN_PULSE_US 500
 #define SERVO_MAX_PULSE_US 2500
-#define SERVO1_MIN_ANGLE 90
-#define SERVO1_MAX_ANGLE 180
+#define SERVO1_MIN_ANGLE 0
+#define SERVO1_MAX_ANGLE 150
 #define SERVO2_MIN_ANGLE 0
 #define SERVO2_MAX_ANGLE 180
-#define SERVO1_RESET_ANGLE 90
-#define SERVO2_RESET_ANGLE 90
-#define SERVO1_MID_ANGLE 135
-#define SERVO2_MID_ANGLE 90
+#define SERVO1_RESET_ANGLE (SERVO1_MAX_ANGLE+SERVO1_MIN_ANGLE)/2
+#define SERVO2_RESET_ANGLE (SERVO1_MAX_ANGLE+SERVO1_MIN_ANGLE)/2
+#define SERVO1_MID_ANGLE (SERVO1_MAX_ANGLE+SERVO1_MIN_ANGLE)/2
+#define SERVO2_MID_ANGLE (SERVO1_MAX_ANGLE+SERVO1_MIN_ANGLE)/2
 
 #define WIFI_AP_SSID "ESP32_S3_AP"
 
@@ -75,7 +75,8 @@ LIS3DHTR<TwoWire> LIS;
 #define DHTTYPE DHT11
 DHT dht(DHT_PIN, DHTTYPE);
 Ultrasonic ultrasonic(ULTRASONIC_PIN);
-WonderK210_I2C k210;
+TwoWire *k210Wire = new TwoWire(1);
+WonderK210_I2C *k210 = new WonderK210_I2C(k210Wire);
 Find_Box_st *result;
 PS2X ps2x;
 
@@ -234,8 +235,8 @@ void vRgbTask(void *pvParameters)
 {
     (void)pvParameters;
     Serial.println("RGB Task started: Setting constant white");
-    // fill_solid(leds, NUM_RGB_LEDS, CRGB::White);
-    // FastLED.show();
+    fill_solid(leds, NUM_RGB_LEDS, CRGB::White);
+    FastLED.show();
     for (;;)
     {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -369,8 +370,6 @@ void setup()
     while (!Serial);
     delay(1000);
     Serial.println("\n\nESP32-S3 Full-Load Test Program Starting...");
-
-    Serial1.begin(115200, SERIAL_8N1, K210_RX_PIN, K210_TX_PIN);
     Serial2.begin(115200, SERIAL_8N1, ASR_RX_PIN, ASR_TX_PIN);
 
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -390,7 +389,7 @@ void setup()
         Serial.println("WARNING: LIS3DHTR Accelerometer not found.");
     }
     ps2x.config_gamepad(PS2_CLK_PIN, PS2_CMD_PIN, PS2_CS_PIN, PS2_DATA_PIN, true, true);
-    k210.begin(I2C_SDA, I2C_SCL, 100000);
+    k210->begin(K210_I2C_SDA_PIN, K210_I2C_SCL_PIN);
     result = new Find_Box_st();
     pinMode(LIGHT_PIN, INPUT);
 
