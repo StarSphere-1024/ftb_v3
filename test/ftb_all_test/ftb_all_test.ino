@@ -419,13 +419,6 @@ void testASRBasicCommunication()
         Serial.println("测试失败: 未收到正确回复。");
 }
 
-void testASRWakeup()
-{
-    Serial.println("\n发送 'Wakeup'，期待ASR-Pro进入唤醒状态...");
-    sendToASR("Wakeup\n");
-    Serial.println("请观察ASR-Pro是否进入唤醒状态（通常有语音提示）。");
-}
-
 void testASRAudioPlayback()
 {
     Serial.println("\n发送 'PlayVol:100'，期待播放'我是未来科技盒'...");
@@ -545,7 +538,7 @@ void testServoSerialControl()
 
 void testLightSensor()
 {
-    Serial.println("\n--- 光线传感器测试 (Grove3) ---");
+    Serial.println("\n--- 光线传感器测试 (Grove2) ---");
     Serial.println("将持续读取光线传感器的ADC值 (12位, 0-4095)。");
     Serial.println("按任意键退出。");
     while (Serial.available() == 0)
@@ -561,7 +554,7 @@ void testLightSensor()
 
 void testDHT11Sensor()
 {
-    Serial.println("\n--- 温湿度传感器测试 (DHT11, Grove2) ---");
+    Serial.println("\n--- 温湿度传感器测试 (DHT11, Grove4) ---");
     Serial.println("读取温湿度数据 (5次，间隔1500ms)：");
     for (int i = 0; i < 5; i++)
     {
@@ -577,7 +570,7 @@ void testDHT11Sensor()
 
 void testUltrasonicSensor()
 {
-    Serial.println("\n--- 超声波传感器测试 (Grove4) ---");
+    Serial.println("\n--- 超声波传感器测试 (Grove5) ---");
     Serial.println("读取距离数据 (5次，间隔500ms)：");
     for (int i = 0; i < 5; i++)
     {
@@ -651,9 +644,8 @@ void testSerialASR()
     Serial.println("\n--- 2. ASR-PRO串口通信测试 (UART2) ---");
     Serial.println("测试选项：");
     Serial.println("  1. 测试基础通信 (PING/PONG)");
-    Serial.println("  2. 测试唤醒功能");
-    Serial.println("  3. 测试音频播放 (ID: 100)");
-    Serial.println("  4. 测试语音控制RGB (需说'打开灯光'或'关闭灯光')");
+    Serial.println("  2. 测试音频播放 (ID: 100)");
+    Serial.println("  3. 测试语音控制RGB (需说'打开灯光'或'关闭灯光')");
     Serial.println("  0. 退出");
     Serial.print("请选择测试选项: ");
 
@@ -690,7 +682,7 @@ void testSerialASR()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (回车退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车或者输入0退出): ");
         }
     }
 }
@@ -763,7 +755,7 @@ void testI2C()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (回车退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车或者输入0退出): ");
         }
     }
 }
@@ -773,7 +765,7 @@ void testAnalogInterfaces()
     Serial.println("\n--- 6. 模拟接口测试 (J16, J17) ---");
     Serial.println("测试选项：");
     Serial.println("  1. 循迹传感器ADC测试");
-    Serial.println("  2. 光线传感器测试 (GPIO2)");
+    Serial.println("  2. 光线传感器测试");
     Serial.println("  0. 退出");
     Serial.print("请选择测试选项: ");
 
@@ -804,7 +796,7 @@ void testAnalogInterfaces()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (回车退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车或者输入0退出): ");
         }
     }
 }
@@ -814,7 +806,7 @@ void testGroveInterfaces()
     Serial.println("\n--- 7. Grove 接口测试 ---");
     Serial.println("测试选项：");
     Serial.println("  1. 温湿度传感器测试 (DHT11, Grove4)");
-    Serial.println("  2. 超声波传感器测试 (Grove2)");
+    Serial.println("  2. 超声波传感器测试 (Grove5)");
     Serial.println("  0. 退出");
     Serial.print("请选择测试选项: ");
 
@@ -845,7 +837,7 @@ void testGroveInterfaces()
 
             if (should_exit)
                 break;
-            Serial.print("\n请选择下一个测试选项 (回车退出): ");
+            Serial.print("\n请选择下一个测试选项 (回车或者输入0退出): ");
         }
     }
 }

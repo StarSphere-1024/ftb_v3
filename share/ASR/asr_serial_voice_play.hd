@@ -7,6 +7,8 @@ extern "C"
 #include "HardwareSerial.h"
 #include "myLib/asr_event.h"
 
+#define DEFAULT_VOLUME 6
+
 uint32_t snid;
 String Rec;
 
@@ -20,41 +22,68 @@ void app();
 //{playid:10002,voice:我退下了}
 
 // 处理串口命令的通用函数
-void processSerialCommand(String command, const char *portName)
+void processSerialCommand(String command, uint8_t portNum)
 {
   command.trim();
-  Serial.print(portName);
+  Serial.print("UART");
+  Serial.print(portNum);
   Serial.print(" received command: ");
   Serial.println(command);
   if (command == "Wakeup")
   {
-    Serial.print(portName);
-    Serial.println("Triggering wake-up for 5000ms");
     enter_wakeup(5000);
-    Serial.print(portName);
-    Serial.println("Wake-up command executed");
+    Serial.print("UART");
+    Serial.print(portNum);
+    Serial.println(" Triggering wake-up for 5000ms");
   }
   else if (command.startsWith("PlayVol:"))
   {
     String audioIdStr = command.substring(8); // 解析 PlayVol: 后的数字
     int audioId = audioIdStr.toInt();
-    Serial.print(portName);
-    Serial.print(" Parsed audio ID: ");
-    Serial.println(audioId);
     enter_wakeup(5000);
     play_audio(audioId);
-    Serial.print(portName);
-    Serial.println(" Audio playback command executed");
+    Serial.print("UART");
+    Serial.print(portNum);
+    Serial.print(" Play Audio ");
+    Serial.println(audioId);
+  }
+  else if (command.startsWith("SetVolume:"))
+  {
+    String volumeStr = command.substring(10); // 解析 SetVolume: 后的数字
+    int volume = volumeStr.toInt();
+    vol_set(volume);
+    Serial.print("UART");
+    Serial.print(portNum);
+    Serial.print(" Volume set to ");
+    Serial.println(volume);
   }
   else if (command == "PingASR")
   {
-    Serial1.println("PongASR");
-    Serial.print(portName);
-    Serial.println("Println PongASR");
+    switch (portNum)
+    {
+    case 0:
+      Serial.println("PongASR");
+      break;
+    case 1:
+      Serial1.println("PongASR");
+      break;
+    case 2:
+      Serial2.println("PongASR");
+      break;
+    default:
+      Serial.print("UART");
+      Serial.print(portNum);
+      Serial.println(" Unknown port");
+      break;
+    }
+    Serial.print("UART");
+    Serial.print(portNum);
+    Serial.println(" Println PongASR");
   }
   else
   {
-    Serial.print(portName);
+    Serial.print("UART");
+    Serial.print(portNum);
     Serial.println(" Invalid command");
   }
 }
@@ -67,7 +96,7 @@ void UART0_RX()
     if (Serial.available() > 0)
     {
       String command = Serial.readStringUntil('\n');
-      processSerialCommand(command, "UART0");
+      processSerialCommand(command, 0);
     }
     delay(2);
   }
@@ -82,7 +111,22 @@ void UART1_RX()
     if (Serial1.available() > 0)
     {
       String command = Serial1.readStringUntil('\n');
-      processSerialCommand(command, "UART1");
+      processSerialCommand(command, 1);
+    }
+    delay(2);
+  }
+  vTaskDelete(NULL);
+}
+
+// 处理用户的 Serial2 命令
+void UART2_RX()
+{
+  while (1)
+  {
+    if (Serial2.available() > 0)
+    {
+      String command = Serial2.readStringUntil('\n');
+      processSerialCommand(command, 2);
     }
     delay(2);
   }
@@ -126,17 +170,23 @@ void app()
 
 void hardware_init()
 {
+  Serial.println("Initializing hardware");
   setPinFun(13, SECOND_FUNCTION);
   setPinFun(14, SECOND_FUNCTION);
   Serial.begin(115200);
   setPinFun(2, FORTH_FUNCTION);
   setPinFun(3, FORTH_FUNCTION);
   Serial1.begin(115200);
-  Serial.println("Initializing hardware");
-  vol_set(6);
-  Serial.println("Volume set to 6");
+  setPinFun(5, FORTH_FUNCTION);
+  setPinFun(6, FORTH_FUNCTION);
+  Serial2.begin(115200);
+  vol_set(DEFAULT_VOLUME);
+  Serial.print("Volume set to ");
+  Serial.println(DEFAULT_VOLUME);
   xTaskCreate(UART0_RX, "UART0_RX", 256, NULL, 3, NULL); // PC Serial 任务
-  xTaskCreate(UART1_RX, "UART1_RX", 256, NULL, 4, NULL); // ESP32S3 Serial1 任务
+  xTaskCreate(UART1_RX, "UART1_RX", 256, NULL, 5, NULL); // ESP32S3 Serial1 任务
+  xTaskCreate(UART2_RX, "UART2_RX", 256, NULL, 4, NULL); // User Serial2 任务
+
   xTaskCreate(app, "app", 128, NULL, 2, NULL);
   Serial.println("Tasks created: UART0_RX, UART1_RX, app");
   Serial.println("Hardware initialization complete");
@@ -150,7 +200,6 @@ void setup()
   //{ID:1,keyword:"命令词",ASR:"打开灯光",ASRTO:"已打开灯光"}
   //{ID:2,keyword:"命令词",ASR:"关闭灯光",ASRTO:"已关闭灯光"}
 }
-
 
 
 /** edittype="asr_procode" */
