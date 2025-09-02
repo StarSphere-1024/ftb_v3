@@ -1280,7 +1280,7 @@ void setup()
     g_servo_timer = timerBegin(SERVO_TIMER_FREQUENCY);
     timerAttachInterrupt(g_servo_timer, &on_servo_timer);
     timerAlarm(g_servo_timer, SERVO_TIMER_TICK_US, true, 0);
-    Servos_SetAngle(1, 180);
+    Servos_SetAngle(1, 75);
     Servos_SetAngle(2, 90);
 
     uint8_t motorPins[] = {LF_MOTOR_FWD_PWM, LF_MOTOR_REV_PWM, RF_MOTOR_FWD_PWM, RF_MOTOR_REV_PWM,
