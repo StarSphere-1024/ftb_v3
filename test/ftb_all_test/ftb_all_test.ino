@@ -664,12 +664,9 @@ void testSerialASR()
                 testASRBasicCommunication();
                 break;
             case 2:
-                testASRWakeup();
-                break;
-            case 3:
                 testASRAudioPlayback();
                 break;
-            case 4:
+            case 3:
                 testASRRGBControl();
                 break;
             case 0:
