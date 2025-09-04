@@ -163,7 +163,8 @@ void app()
 {
   while (1)
   {
-    delay(100);
+    Serial2.println("Serial2 is working");
+    delay(500);
   }
   vTaskDelete(NULL);
 }
@@ -200,6 +201,8 @@ void setup()
   //{ID:1,keyword:"命令词",ASR:"打开灯光",ASRTO:"已打开灯光"}
   //{ID:2,keyword:"命令词",ASR:"关闭灯光",ASRTO:"已关闭灯光"}
 }
+
+
 
 
 /** edittype="asr_procode" */
