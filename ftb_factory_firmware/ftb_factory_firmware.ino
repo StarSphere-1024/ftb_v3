@@ -62,7 +62,7 @@
 #define NUM_RGB_LEDS 9
 #define LED_TYPE WS2812B
 #define COLOR_ORDER GRB
-#define INITIAL_RGB_BRIGHTNESS 100
+#define INITIAL_RGB_BRIGHTNESS 10
 
 #define SERVO1_PIN 48
 #define SERVO2_PIN 47
@@ -599,7 +599,7 @@ void vTaskUI(void *pvParameters) {
   uint8_t hue = 0;
   bool rgb_on = true;
   uint8_t brightness_levels[] = { 10, 50, 100, 150, 200 };
-  uint8_t current_brightness_index = 2;
+  uint8_t current_brightness_index = 0;
   FastLED.setBrightness(brightness_levels[current_brightness_index]);
 
   for (;;) {
