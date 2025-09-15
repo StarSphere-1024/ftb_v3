@@ -500,7 +500,7 @@ void setup()
     FastLED.setBrightness(RGB_BRIGHTNESS);
     fill_solid(leds, NUM_RGB_LEDS, CRGB::Black);
     FastLED.show();
-
+    dht.begin();
     Serial.println("\nInitializing WiFi and starting Access Point...");
     WiFi.mode(WIFI_AP);
     WiFi.softAP(WIFI_AP_SSID);

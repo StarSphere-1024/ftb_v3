@@ -398,6 +398,7 @@ void setup()
     Serial.println("\n\nESP32-S3 Full-Load Test Program Starting...");
     Serial2.begin(115200, SERIAL_8N1, ASR_RX_PIN, ASR_TX_PIN);
     sendToASR("SetVolume:7\n");
+    dht.begin();
     Wire.begin(I2C_SDA, I2C_SCL);
     Wire.beginTransmission(0x19);
     if (Wire.endTransmission() == 0)
