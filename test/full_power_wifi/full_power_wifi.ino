@@ -40,6 +40,11 @@ CRGB leds[NUM_RGB_LEDS];
 #define GROVE4_PIN_A 26
 #define GROVE4_PIN_B 38
 
+#define SENSOR_L1 GROVE3_PIN_A  // 最左
+#define SENSOR_L0 GROVE3_PIN_B  // 中左
+#define SENSOR_R0 GROVE6_PIN_A  // 中右
+#define SENSOR_R1 GROVE6_PIN_B  // 最右
+
 #define LIGHT_PIN GROVE2_PIN_A
 #define DHT_PIN GROVE4_PIN_A
 #define ULTRASONIC_PIN GROVE5_PIN_A
@@ -57,6 +62,11 @@ CRGB leds[NUM_RGB_LEDS];
 #define LR_MOTOR_REV_PWM 15
 #define RR_MOTOR_FWD_PWM 17
 #define RR_MOTOR_REV_PWM 18
+
+#define LINE_THRESHOLD 500
+#define BASE_SPEED 150
+#define TURN_OMEGA 50
+#define SPIN_OMEGA 120
 
 #define WIFI_AP_SSID "ESP32_S3_AP"
 
@@ -118,9 +128,97 @@ void setMecanumWheels(int lfSpeed, int rfSpeed, int lrSpeed, int rrSpeed)
     controlWheel(RR_MOTOR_FWD_PWM, RR_MOTOR_REV_PWM, rrSpeed);
 }
 
-void moveForward(uint8_t speed)
-{
-    setMecanumWheels(speed, speed, speed, speed);
+/**
+ * @brief 控制麦克纳母轮小车的运动
+ * @param vx 前进速度 (-255 到 255), 正为前进, 负为后退
+ * @param vy 平移速度 (-255 到 255), 正为向右, 负为向左
+ * @param omega 旋转速度 (-255 到 255), 正为顺时针, 负为逆时针
+ */
+void mecanumDrive(int vx, int vy, int omega) {
+  int pwm_lf = vx - vy + omega;
+  int pwm_rf = vx + vy - omega;
+  int pwm_lr = vx + vy + omega;
+  int pwm_rr = vx - vy - omega;
+
+  // 查找最大PWM值，用于归一化，防止速度超限
+  int max_pwm = 0;
+  max_pwm = max(max_pwm, abs(pwm_lf));
+  max_pwm = max(max_pwm, abs(pwm_rf));
+  max_pwm = max(max_pwm, abs(pwm_lr));
+  max_pwm = max(max_pwm, abs(pwm_rr));
+
+  // 如果计算出的最大值超过255，则按比例缩小所有值
+  if (max_pwm > 255) {
+    pwm_lf = map(pwm_lf, -max_pwm, max_pwm, -255, 255);
+    pwm_rf = map(pwm_rf, -max_pwm, max_pwm, -255, 255);
+    pwm_lr = map(pwm_lr, -max_pwm, max_pwm, -255, 255);
+    pwm_rr = map(pwm_rr, -max_pwm, max_pwm, -255, 255);
+  }
+
+  setMecanumWheels(pwm_lf, pwm_rf, pwm_lr, pwm_rr);
+}
+
+
+/**
+ * @brief 根据传感器状态执行巡线逻辑
+ */
+void executeLineFollowingLogic() {
+  // 直接读取传感器状态以保证实时性
+  bool sL1 = (analogRead(SENSOR_L1) > LINE_THRESHOLD);
+  bool sL0 = (analogRead(SENSOR_L0) > LINE_THRESHOLD);
+  bool sR0 = (analogRead(SENSOR_R0) > LINE_THRESHOLD);
+  bool sR1 = (analogRead(SENSOR_R1) > LINE_THRESHOLD);
+
+  // 将4个传感器的状态合并成一个4位的二进制数
+  // 格式: sL1 sL0 sR0 sR1
+  byte sensorState = (sL1 << 3) | (sL0 << 2) | (sR0 << 1) | sR1;
+
+  switch (sensorState) {
+    case 0b0110: // 状态 [0,1,1,0]: 完美在循迹线上 -> 直行
+      mecanumDrive(BASE_SPEED, 0, 0);
+      break;
+
+    case 0b0010: // 状态 [0,0,1,0]: 车体偏左 -> 向右轻转
+      mecanumDrive(BASE_SPEED, 0, TURN_OMEGA);
+      break;
+    case 0b0100: // 状态 [0,1,0,0]: 车体偏右 -> 向左轻转
+      mecanumDrive(BASE_SPEED, 0, -TURN_OMEGA);
+      break;
+
+    case 0b0011: // 状态 [0,0,1,1]: 车体严重偏左 -> 向右转
+      mecanumDrive(BASE_SPEED, 0, TURN_OMEGA * 1.2);
+    case 0b1100: // 状态 [1,1,0,0]: 车体严重偏右 -> 向左转
+      mecanumDrive(BASE_SPEED, 0, -TURN_OMEGA * 1.2);
+      break;
+
+    case 0b0001: // 状态 [0,0,0,1]: 车体在最左侧，压到最右侧线 -> 向右急转
+     mecanumDrive(BASE_SPEED, 0, TURN_OMEGA * 1.5);
+    case 0b1000: // 状态 [1,0,0,0]: 车体在最右侧，压到最左侧线 -> 向左急转
+     mecanumDrive(BASE_SPEED, 0, -TURN_OMEGA * 1.5);
+      break;
+
+    // 处理直角弯或T字路口
+    case 0b1110: // 左侧检测到横线 -> 向左旋转
+       mecanumDrive(0, 0, -SPIN_OMEGA);
+       break;
+
+    case 0b0111: // 右侧检测到横线 -> 向右旋转
+       mecanumDrive(0, 0, SPIN_OMEGA);
+       break;
+
+    case 0b0000: 
+      mecanumDrive(0, 0, SPIN_OMEGA);
+      break;
+
+    case 0b1111: 
+      mecanumDrive(0, 0, 0);
+      break;
+
+    default: // 其他未定义状态
+      // 默认停止，保证安全
+      mecanumDrive(0, 0, 0);
+      break;
+  }
 }
 
 void sendToASR(String command)
@@ -128,26 +226,14 @@ void sendToASR(String command)
     Serial2.println(command);
 }
 
-void vMotorTask(void *pvParameters)
+void vLineFollowingTask(void *pvParameters)
 {
     (void)pvParameters;
-    Serial.println("Motor Task started: Ramping up speed over 5 seconds...");
-
-    const int MAX_SPEED = 255;
-    const int RAMP_UP_TIME_MS = 3000;
-    const int delay_per_step = RAMP_UP_TIME_MS / MAX_SPEED;
-
-    for (int speed = 0; speed <= MAX_SPEED; speed++)
-    {
-        moveForward(speed);
-        vTaskDelay(pdMS_TO_TICKS(delay_per_step));
-    }
-
-    Serial.println("Motor Task: Reached max speed. Maintaining.");
-    moveForward(MAX_SPEED);
+    Serial.println("Line Following Task started.");
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(500));
+        executeLineFollowingLogic();
+        vTaskDelay(pdMS_TO_TICKS(20)); // 循线逻辑可以运行得更频繁一些
     }
 }
 
@@ -206,10 +292,10 @@ void vSensorUpdateTask(void *pvParameters)
             az = LIS.getAccelerationZ();
         }
         light = analogRead(LIGHT_PIN);
-        L1 = analogRead(GROVE3_PIN_A);
-        L0 = analogRead(GROVE3_PIN_B);
-        R0 = analogRead(GROVE6_PIN_A);
-        R1 = analogRead(GROVE6_PIN_B);
+        L1 = analogRead(SENSOR_L1);
+        L0 = analogRead(SENSOR_L0);
+        R0 = analogRead(SENSOR_R0);
+        R1 = analogRead(SENSOR_R1);
         if (g_isK210Connected)
         {
             k210->update_data();
@@ -271,47 +357,27 @@ void vSerialReportTask(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(2000));
             continue;
         }
+        printf("\n--- Full-Load Test Sensor Report ---\n");
+        printf("Timestamp: %lu\n", millis());
+        printf("Temp: %.2f *C\n", localSensorData.temperature);
+        printf("Humidity: %.2f %%\n", localSensorData.humidity);
+        printf("Ultrasonic: %ld cm\n", localSensorData.ultrasonic_distance);
+        printf("Light: %d\n", localSensorData.light_value);
+        printf("Accelerometer: x=%.2f, y=%.2f, z=%.2f\n", localSensorData.accel_x, localSensorData.accel_y, localSensorData.accel_z);
 
-        Serial.println("\n--- Full-Load Test Sensor Report ---");
-        Serial.print("Timestamp: ");
-        Serial.println(millis());
-        Serial.print("Temp: ");
-        Serial.print(localSensorData.temperature);
-        Serial.println(" *C");
-        Serial.print("Humidity: ");
-        Serial.print(localSensorData.humidity);
-        Serial.println(" %");
-        Serial.print("Ultrasonic: ");
-        Serial.print(localSensorData.ultrasonic_distance);
-        Serial.println(" cm");
-        Serial.print("Light: ");
-        Serial.println(localSensorData.light_value);
-        Serial.print("Accelerometer: x=");
-        Serial.print(localSensorData.accel_x, 2);
-        Serial.print(", y=");
-        Serial.print(localSensorData.accel_y, 2);
-        Serial.print(", z=");
-        Serial.println(localSensorData.accel_z, 2);
-
-        Serial.print("Line Follower: L1=");
-        Serial.print(localSensorData.line_follower_L1);
-        Serial.print(", L0=");
-        Serial.print(localSensorData.line_follower_L0);
-        Serial.print(", R0=");
-        Serial.print(localSensorData.line_follower_R0);
-        Serial.print(", R1=");
-        Serial.println(localSensorData.line_follower_R1);
+        printf("Line Follower: L1=%d, L0=%d, R0=%d, R1=%d\n",
+               localSensorData.line_follower_L1,
+               localSensorData.line_follower_L0,
+               localSensorData.line_follower_R0,
+               localSensorData.line_follower_R1);
 
         if (localSensorData.face_detected)
         {
-            Serial.print("Face Detected: Yes | x=");
-            Serial.print(localSensorData.face_result.x);
-            Serial.print(", y=");
-            Serial.print(localSensorData.face_result.y);
-            Serial.print(", w=");
-            Serial.print(localSensorData.face_result.w);
-            Serial.print(", h=");
-            Serial.println(localSensorData.face_result.h);
+            printf("Face Detected: Yes | x=%d, y=%d, w=%d, h=%d\n",
+                   localSensorData.face_result.x,
+                   localSensorData.face_result.y,
+                   localSensorData.face_result.w,
+                   localSensorData.face_result.h);
         }
         else
         {
@@ -422,14 +488,6 @@ void setup()
     pinMode(GROVE6_PIN_A, INPUT);
     pinMode(GROVE6_PIN_B, INPUT);
 
-    pinMode(SERVO1_PIN, OUTPUT);
-    pinMode(SERVO2_PIN, OUTPUT);
-    g_servo_timer = timerBegin(SERVO_TIMER_FREQUENCY);
-    timerAttachInterrupt(g_servo_timer, &on_servo_timer);
-    timerAlarm(g_servo_timer, SERVO_TIMER_TICK_US, true, 0);
-    Servos_SetAngle(1, SERVO1_RESET_ANGLE);
-    Servos_SetAngle(2, SERVO2_RESET_ANGLE);
-
     uint8_t motorPins[] = {LF_MOTOR_FWD_PWM, LF_MOTOR_REV_PWM, RF_MOTOR_FWD_PWM, RF_MOTOR_REV_PWM,
                            LR_MOTOR_FWD_PWM, LR_MOTOR_REV_PWM, RR_MOTOR_FWD_PWM, RR_MOTOR_REV_PWM};
     for (uint8_t pin : motorPins)
@@ -467,7 +525,7 @@ void setup()
 
     Serial.println("Creating FreeRTOS tasks...");
 
-    xTaskCreate(vMotorTask, "MotorTask", 2048, NULL, 2, NULL);
+    xTaskCreate(vLineFollowingTask, "LineFollowingTask", 2048, NULL, 2, NULL);
     xTaskCreate(vVoiceTask, "VoiceTask", 2048, NULL, 1, NULL);
     xTaskCreate(vRgbTask, "RgbTask", 2048, NULL, 1, NULL);
     xTaskCreate(vSensorUpdateTask, "SensorUpdateTask", 4096, NULL, 3, NULL);
