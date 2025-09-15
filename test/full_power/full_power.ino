@@ -98,6 +98,7 @@ struct SensorData_t
 SensorData_t g_sensorData;
 SemaphoreHandle_t g_sensorDataMutex;
 bool g_isAccelerometerPresent = false;
+bool g_isK210Connected = false;
 
 hw_timer_t *g_servo_timer = NULL;
 portMUX_TYPE g_servo_timer_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -279,11 +280,15 @@ void vSensorUpdateTask(void *pvParameters)
         L0 = analogRead(GROVE3_PIN_B);
         R0 = analogRead(GROVE6_PIN_A);
         R1 = analogRead(GROVE6_PIN_B);
-        k210->update_data();
-        face_found = k210->recive_box(result, K210_FIND_FACE_YOLO);
-        if (face_found)
-        {
-            face_res = *result;
+        if (g_isK210Connected) {
+            k210->update_data();
+            face_found = k210->recive_box(result, K210_FIND_FACE_YOLO);
+            if (face_found)
+            {
+                face_res = *result;
+            }
+        } else {
+            face_found = false;
         }
 
         if (xSemaphoreTake(g_sensorDataMutex, pdMS_TO_TICKS(1000)) == pdTRUE)
@@ -411,6 +416,13 @@ void setup()
     }
     ps2x.config_gamepad(PS2_CLK_PIN, PS2_CMD_PIN, PS2_CS_PIN, PS2_DATA_PIN, true, true);
     k210->begin(K210_I2C_SDA_PIN, K210_I2C_SCL_PIN);
+    if (k210->isConnected()) {
+        g_isK210Connected = true;
+        Serial.println("K210 found and initialized.");
+    } else {
+        g_isK210Connected = false;
+        Serial.println("WARNING: K210 not found.");
+    }
     result = new Find_Box_st();
     pinMode(LIGHT_PIN, INPUT);
     pinMode(GROVE3_PIN_A, INPUT);

@@ -43,10 +43,6 @@ void WonderK210_I2C::begin(int sda, int scl)
     {
         _wire->begin(sda, scl);
     }
-    else
-    {
-        _wire->begin();
-    }
 }
 
 bool WonderK210_I2C::update_data()
@@ -97,6 +93,16 @@ bool WonderK210_I2C::update_data()
         return true;
     }
 
+    return false;
+}
+
+bool WonderK210_I2C::isConnected()
+{
+    _wire->beginTransmission(_address);
+    if (_wire->endTransmission() == 0)
+    {
+        return true;
+    }
     return false;
 }
 

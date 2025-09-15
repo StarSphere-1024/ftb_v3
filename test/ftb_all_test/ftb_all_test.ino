@@ -367,6 +367,11 @@ void wait_for_exit()
 void testK210FaceRecognition()
 {
     Serial.println("\n测试K210人脸识别数据...");
+    if (!k210->isConnected()) {
+        Serial.println("错误：K210 未连接，无法进行测试。");
+        wait_for_exit();
+        return;
+    }
     Serial.println("持续读取人脸框数据 (x, y, w, h)。按任意键退出。");
     k210->update_data();
     while (Serial.available() == 0)

@@ -96,6 +96,16 @@ bool WonderK210_I2C::update_data()
     return false;
 }
 
+bool WonderK210_I2C::isConnected()
+{
+    _wire->beginTransmission(_address);
+    if (_wire->endTransmission() == 0)
+    {
+        return true;
+    }
+    return false;
+}
+
 bool WonderK210_I2C::recive_box(Find_Box_st *rec, enum k210_PACKET_FUNCTION func)
 {
     if (!_read_succeed || _packet_function != func || _packet_length != sizeof(Find_Box_st)) {

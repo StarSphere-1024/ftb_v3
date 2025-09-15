@@ -152,6 +152,7 @@ EventGroupHandle_t g_ui_event_group;
 
 bool g_is_accelerometer_available = false;
 bool g_is_ps2_connected = false;
+bool g_is_k210_connected = false;
 BLECharacteristic *pCharacteristic;
 bool g_device_connected = false;
 
@@ -314,6 +315,13 @@ void hal_sensors_init() {
   pinMode(LIGHT_PIN, INPUT);
   
   k210->begin(K210_I2C_SDA_PIN, K210_I2C_SCL_PIN);
+  if (k210->isConnected()) {
+    g_is_k210_connected = true;
+    Serial.println("HAL: K210 found and initialized.");
+  } else {
+    g_is_k210_connected = false;
+    Serial.println("HAL WARNING: K210 not found. Skipping initialization.");
+  }
   Serial.println("HAL: All sensors initialized.");
 }
 
@@ -542,10 +550,14 @@ void vTaskSensorCollection(void *pvParameters) {
     data_packet.ultrasonic_dist = ultrasonic.MeasureInCentimeters();
     data_packet.light_level = analogRead(LIGHT_PIN);
 
-    k210->update_data();
-    if (k210->recive_box(&face_result_buffer, K210_FIND_FACE_YOLO)) {
-      data_packet.face_result = face_result_buffer;
-      data_packet.face_detected = true;
+    if (g_is_k210_connected) {
+      k210->update_data();
+      if (k210->recive_box(&face_result_buffer, K210_FIND_FACE_YOLO)) {
+        data_packet.face_result = face_result_buffer;
+        data_packet.face_detected = true;
+      } else {
+        data_packet.face_detected = false;
+      }
     } else {
       data_packet.face_detected = false;
     }

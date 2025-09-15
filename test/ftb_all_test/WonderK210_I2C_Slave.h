@@ -66,6 +66,7 @@ public:
     void begin(int sda = -1, int scl = -1);
 
     bool update_data();
+    bool isConnected();
     bool recive_box(Find_Box_st *rec, enum k210_PACKET_FUNCTION func);
     bool recive_box_msg(Find_Box_Msg_st *rec, enum k210_PACKET_FUNCTION func);
     bool recive_msg(Find_Msg_st *rec, enum k210_PACKET_FUNCTION func);
