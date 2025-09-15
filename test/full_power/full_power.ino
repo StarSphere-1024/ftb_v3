@@ -87,6 +87,10 @@ struct SensorData_t
     long ultrasonic_distance;
     float accel_x, accel_y, accel_z;
     int light_value;
+    int line_follower_L1;
+    int line_follower_L0;
+    int line_follower_R0;
+    int line_follower_R1;
     Find_Box_st face_result;
     bool face_detected;
 };
@@ -250,6 +254,7 @@ void vSensorUpdateTask(void *pvParameters)
     long distance;
     float ax, ay, az;
     int light;
+    int L1, L0, R0, R1;
     Find_Box_st face_res;
     bool face_found;
 
@@ -270,6 +275,10 @@ void vSensorUpdateTask(void *pvParameters)
             az = LIS.getAccelerationZ();
         }
         light = analogRead(LIGHT_PIN);
+        L1 = analogRead(GROVE3_PIN_A);
+        L0 = analogRead(GROVE3_PIN_B);
+        R0 = analogRead(GROVE6_PIN_A);
+        R1 = analogRead(GROVE6_PIN_B);
         k210->update_data();
         face_found = k210->recive_box(result, K210_FIND_FACE_YOLO);
         if (face_found)
@@ -286,6 +295,10 @@ void vSensorUpdateTask(void *pvParameters)
             g_sensorData.accel_y = ay;
             g_sensorData.accel_z = az;
             g_sensorData.light_value = light;
+            g_sensorData.line_follower_L1 = L1;
+            g_sensorData.line_follower_L0 = L0;
+            g_sensorData.line_follower_R0 = R0;
+            g_sensorData.line_follower_R1 = R1;
             g_sensorData.face_detected = face_found;
             if (face_found)
             {
@@ -342,6 +355,15 @@ void vSerialReportTask(void *pvParameters)
         Serial.print(", z=");
         Serial.println(localSensorData.accel_z, 2);
 
+        Serial.print("Line Follower: L1=");
+        Serial.print(localSensorData.line_follower_L1);
+        Serial.print(", L0=");
+        Serial.print(localSensorData.line_follower_L0);
+        Serial.print(", R0=");
+        Serial.print(localSensorData.line_follower_R0);
+        Serial.print(", R1=");
+        Serial.println(localSensorData.line_follower_R1);
+
         if (localSensorData.face_detected)
         {
             Serial.print("Face Detected: Yes | x=");
@@ -391,6 +413,10 @@ void setup()
     k210->begin(K210_I2C_SDA_PIN, K210_I2C_SCL_PIN);
     result = new Find_Box_st();
     pinMode(LIGHT_PIN, INPUT);
+    pinMode(GROVE3_PIN_A, INPUT);
+    pinMode(GROVE3_PIN_B, INPUT);
+    pinMode(GROVE6_PIN_A, INPUT);
+    pinMode(GROVE6_PIN_B, INPUT);
 
     pinMode(SERVO1_PIN, OUTPUT);
     pinMode(SERVO2_PIN, OUTPUT);
